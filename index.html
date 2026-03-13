@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberAPI Simulator</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --panel: #161b22;
+            --text: #c9d1d9;
+            --accent: #58a6ff;
+            --success: #2ea043;
+            --error: #da3633;
+            --warning: #d29922;
+            --border: #30363d;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 { color: var(--accent); text-shadow: 0 0 10px rgba(88, 166, 255, 0.5); }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #8b949e; font-size: 0.9em; }
+        
+        input, select, textarea {
+            width: 100%;
+            background: #010409;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+        }
+
+        button {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            width: 100%;
+            transition: 0.2s;
+        }
+
+        button:hover { background: #2c974b; }
+        button:active { transform: scale(0.98); }
+
+        .response-area {
+            background: #010409;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 15px;
+            min-height: 300px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            color: #a5d6ff;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status-200 { background: rgba(46, 160, 67, 0.2); color: var(--success); }
+        .status-400 { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
+        .status-500 { background: rgba(218, 54, 51, 0.2); color: var(--error); }
+
+        .docs {
+            margin-top: 40px;
+            width: 100%;
+            max-width: 1200px;
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+        }
+        .doc-item {
+            background: var(--panel);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--accent);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .doc-item:hover { transform: translateX(5px); background: #1c2128; }
+        .doc-method { font-weight: bold; margin-right: 10px; }
+        .GET { color: var(--accent); }
+        .POST { color: var(--success); }
+        .DELETE { color: var(--error); }
+
+        /* Анимация загрузки */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <h1>🚀 CyberAPI Simulator</h1>
+    <p>Этот сайт эмулирует сервер. Вводи запросы ниже и нажимай SEND.</p>
+
+    <div class="container">
+        <!-- Панель запроса -->
+        <div class="panel">
+            <div class="input-group">
+                <label>Method</label>
+                <select id="method">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Endpoint URL (относительный)</label>
+                <input type="text" id="url" value="/api/users" placeholder="/api/users">
+            </div>
+            <div class="input-group">
+                <label>Body (JSON) - только для POST</label>
+                <textarea id="body" rows="6" placeholder='{"name": "Neo", "role": "admin"}'></textarea>
+            </div>
+            <button onclick="sendRequest()">SEND REQUEST</button>
+            <div class="loader" id="loader"></div>
+        </div>
+
+        <!-- Панель ответа -->
+        <div class="panel">
+            <label>Response</label>
+            <div id="statusBadge" class="status-badge" style="display:none"></div>
+            <div class="response-area" id="response">Ожидание запроса...</div>
+            <div style="margin-top: 10px; font-size: 0.8em; color: #8b949e;">
+                Time: <span id="time">0</span> ms
+            </div>
+        </div>
+    </div>
+
+    <!-- Документация -->
+    <div class="docs">
+        <h2>📚 Доступные эндпоинты (нажми, чтобы подставить)</h2>
+        
+        <div class="doc-item" onclick="fillRequest('GET', '/api/users', '')">
+            <span class="doc-method GET">GET</span> /api/users
+            <br><small>Получить список всех пользователей</small>
+        </div>
+
+        <div class="doc-item" onclick="fillRequest('GET', '/api/users/1', '')">
+            <span class="doc-method GET">GET</span> /api/users/:id
+            <br><small>Получить пользователя по ID (попробуй 1 или 999)</small>
+        </div>
+
+        <div class="doc-item" onclick="fillRequest('POST', '/api/users', '{&quot;name&quot;: &quot;Morpheus&quot;, &quot;role&quot;: &quot;captain&quot;}')">
+            <span class="doc-method POST">POST</span> /api/users
+            <br><small>Создать нового пользователя</small>
+        </div>
+
+        <div class="doc-item" onclick="fillRequest('POST', '/api/login', '{&quot;username&quot;: &quot;admin&quot;, &quot;password&quot;: &quot;123&quot;}')">
+            <span class="doc-method POST">POST</span> /api/login
+            <br><small>Войти в систему (admin / 123)</small>
+        </div>
+
+        <div class="doc-item" onclick="fillRequest('GET', '/api/secret', '')">
+            <span class="doc-method GET">GET</span> /api/secret
+            <br><small>Секретные данные (нужен токен в заголовке, но тут упростим)</small>
+        </div>
+
+        <div class="doc-item" onclick="fillRequest('GET', '/api/crash', '')">
+            <span class="doc-method GET" style="color:var(--error)">GET</span> /api/crash
+            <br><small>Вызвать ошибку сервера 500</small>
+        </div>
+
+        <div class="doc-item" onclick="fillRequest('GET', '/api/slow', '')">
+            <span class="doc-method GET" style="color:var(--warning)">GET</span> /api/slow
+            <br><small>Медленный ответ (3 секунды)</small>
+        </div>
+    </div>
+
+    <script>
+        // Имитация Базы Данных
+        let db = {
+            users: [
+                { id: 1, name: "Neo", role: "The One" },
+                { id: 2, name: "Trinity", role: "Hacker" },
+                { id: 3, name: "Morpheus", role: "Captain" }
+            ],
+            token: null
+        };
+
+        function fillRequest(method, url, body) {
+            document.getElementById('method').value = method;
+            document.getElementById('url').value = url;
+            document.getElementById('body').value = body;
+            document.getElementById('response').innerText = "Ожидание запроса...";
+            document.getElementById('statusBadge').style.display = 'none';
+        }
+
+        function sendRequest() {
+            const method = document.getElementById('method').value;
+            let url = document.getElementById('url').value;
+            const bodyRaw = document.getElementById('body').value;
+            const responseDiv = document.getElementById('response');
+            const statusBadge = document.getElementById('statusBadge');
+            const timeSpan = document.getElementById('time');
+            const loader = document.getElementById('loader');
+
+            // Сброс UI
+            responseDiv.innerText = "";
+            statusBadge.style.display = 'none';
+            loader.style.display = 'block';
+            const startTime = Date.now();
+
+            // Парсинг JSON тела
+            let bodyData = null;
+            if (bodyRaw) {
+                try { bodyData = JSON.parse(bodyRaw); } 
+                catch (e) { return showError(400, "Invalid JSON", "Тело запроса не является валидным JSON"); }
+            }
+
+            // Эмуляция задержки сети (рандомно от 100 до 500мс)
+            const networkDelay = Math.floor(Math.random() * 400) + 100;
+
+            setTimeout(() => {
+                processLogic(method, url, bodyData);
+                const endTime = Date.now();
+                timeSpan.innerText = endTime - startTime;
+                loader.style.display = 'none';
+            }, networkDelay);
+        }
+
+        function showResponse(status, data) {
+            const responseDiv = document.getElementById('response');
+            const statusBadge = document.getElementById('statusBadge');
+            
+            statusBadge.style.display = 'inline-block';
+            statusBadge.className = 'status-badge';
+            
+            if (status === 200 || status === 201) {
+                statusBadge.classList.add('status-200');
+                statusBadge.innerText = `${status} OK`;
+                responseDiv.style.color = '#a5d6ff';
+            } else if (status >= 400 && status < 500) {
+                statusBadge.classList.add('status-400');
+                statusBadge.innerText = `${status} Client Error`;
+                responseDiv.style.color = '#d29922';
+            } else {
+                statusBadge.classList.add('status-500');
+                statusBadge.innerText = `${status} Server Error`;
+                responseDiv.style.color = '#da3633';
+            }
+
+            responseDiv.innerText = JSON.stringify(data, null, 4);
+        }
+
+        function showError(status, title, message) {
+            showResponse(status, { error: title, message: message });
+        }
+
+        // --- ЛОГИКА СЕРВЕРА ---
+        function processLogic(method, url, body) {
+            
+            // 1. GET /api/users
+            if (method === 'GET' && url === '/api/users') {
+                return showResponse(200, { count: db.users.length, users: db.users });
+            }
+
+            // 2. GET /api/users/:id
+            if (method === 'GET' && url.startsWith('/api/users/')) {
+                const id = parseInt(url.split('/').pop());
+                const user = db.users.find(u => u.id === id);
+                if (user) return showResponse(200, user);
+                return showError(404, "Not Found", `Пользователь с ID ${id} не найден в матрице.`);
+            }
+
+            // 3. POST /api/users
+            if (method === 'POST' && url === '/api/users') {
+                if (!body || !body.name) {
+                    return showError(400, "Bad Request", "Поле 'name' обязательно!");
+                }
+                const newUser = { id: db.users.length + 1, ...body };
+                db.users.push(newUser);
+                return showResponse(201, { message: "User created", user: newUser });
+            }
+
+            // 4. POST /api/login
+            if (method === 'POST' && url === '/api/login') {
+                if (body && body.username === 'admin' && body.password === '123') {
+                    db.token = "super_secret_token_xyz";
+                    return showResponse(200, { message: "Login successful", token: db.token });
+                }
+                return showError(401, "Unauthorized", "Неверный логин или пароль");
+            }
+
+            // 5. GET /api/secret
+            if (method === 'GET' && url === '/api/secret') {
+                // Упрощенная проверка токена для демо
+                if (db.token) {
+                    return showResponse(200, { secret: "Код запуска ракет: 0000", owner: "Admin" });
+                }
+                return showError(403, "Forbidden", "Сначала войдите в систему (/api/login)");
+            }
+
+            // 6. GET /api/crash
+            if (method === 'GET' && url === '/api/crash') {
+                // Имитация падения сервера
+                return showError(500, "Internal Server Error", "Database connection lost! NullPointer Exception at line 42.");
+            }
+
+            // 7. GET /api/slow
+            if (method === 'GET' && url === '/api/slow') {
+                // Дополнительная задержка
+                setTimeout(() => {
+                    showResponse(200, { message: "Я проснулся! Это заняло 3 секунды." });
+                }, 3000);
+                return; // Выходим, чтобы не сработал основной таймер дважды
+            }
+
+            // Дефолт
+            showError(404, "Not Found", "Эндпоинт не найден. Проверь документацию ниже.");
+        }
+    </script>
+</body>
+</html>
